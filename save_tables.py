@@ -22,11 +22,7 @@ response = requests.get(url, headers=headers)
 if response.status_code == 200:
     soup = BeautifulSoup(response.text, 'html.parser')
     tables = soup.find_all('table')
-    first_headers = []
-    for table in tables:
-        first_th = table.find('th') 
-        if first_th:
-            first_headers.append(first_th.get_text(strip=True))
+    names = ["انرژی", "فلزات", "کشاورزی", "صنعتی", "دام", "شاخص", "برق"]
     
     print(f"تعداد جداول: {len(tables)}")
 
@@ -41,7 +37,7 @@ if response.status_code == 200:
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(str(table))
         
-        output_file = rf'{folder}\{first_headers[i]}.xlsx'  
+        output_file = rf'{folder}\{names[i]}.xlsx'  
         parser = ExcelParser(file_path)
         parser.to_excel(output_file)
 
@@ -69,9 +65,9 @@ if response.status_code == 200:
             tasks = {}
             for row in df.index:
                 for col in df.columns:
-                    if pd.notna(df.at[row, col]) and col != df.columns[8]:
+                    if pd.notna(df.at[row, col]) and col == df.columns[0]:
                         tasks[(row, col)] = asyncio.create_task(translate_text(df.at[row, col]))
-                    elif pd.notna(df.at[row, col]) and col == df.columns[8] and df.index[0]:
+                    elif pd.notna(df.at[row, col]) and col != df.columns[0] and df.index[0]:
                         tasks[(row, col)] = asyncio.create_task(translate_text(df.at[row, col]))
             
             results = await asyncio.gather(*tasks.values())
@@ -79,7 +75,7 @@ if response.status_code == 200:
             for (row, col), translated_text in zip(tasks.keys(), results):
                 df.at[row, col] = translated_text
 
-            output_file = os.path.join(f"translated_{os.path.basename(folder_path)}", f"translated_{os.path.basename(file_path)}")
+            output_file = os.path.join(f"translated_{os.path.basename(folder_path)}", f"{os.path.basename(file_path)}")
             os.makedirs(f"translated_{os.path.basename(folder_path)}", exist_ok=True)  
             df.to_excel(output_file, index=False)
 
