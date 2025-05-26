@@ -2,6 +2,10 @@ import requests
 import os
 import datetime
 import jdatetime
+import pandas as pd
+import asyncio
+import glob
+from googletrans import Translator
 from bs4 import BeautifulSoup
 from html2excel import ExcelParser
 
@@ -42,6 +46,57 @@ if response.status_code == 200:
 
         os.remove(file_path) 
         print(f"جدول {i+1}ذخیره")
+
+        translator = Translator()
+
+        async def translate_text(text):
+            if pd.notna(text):
+                translated = await translator.translate(text, src='en', dest='fa')
+                return translated.text
+            return text
+
+        async def process_excel(file_path, folder_path):
+            print(f"پردازش فایل: {file_path}") 
+
+            df = pd.read_excel(file_path)
+
+            header_tasks = {col: asyncio.create_task(translate_text(col)) for col in df.columns}
+            header_results = await asyncio.gather(*header_tasks.values())
+            df.columns = header_results 
+
+            
+            tasks = {}
+            for row in df.index:
+                for col in df.columns:
+                    if pd.notna(df.at[row, col]):
+                        tasks[(row, col)] = asyncio.create_task(translate_text(df.at[row, col]))
+            
+            results = await asyncio.gather(*tasks.values())
+            
+            for (row, col), translated_text in zip(tasks.keys(), results):
+                df.at[row, col] = translated_text
+
+            output_file = os.path.join(f"translated_{os.path.basename(folder_path)}", f"translated_{os.path.basename(file_path)}")
+            os.makedirs(f"translated_{os.path.basename(folder_path)}", exist_ok=True)  
+            df.to_excel(output_file, index=False)
+
+            print(f"ذخیره فایل ترجمه‌شده: {output_file}")
+
+        async def main():
+            folder_path = rf"{folder}"
+            
+            excel_files = glob.glob(os.path.join(folder_path, "*.xlsx"))
+
+            if not excel_files:
+                print(" هیچ فایل اکسل یافت نشد")
+                return
+
+            
+            for file_path in excel_files:
+                await process_excel(file_path, folder_path)
+
+        asyncio.run(main())
+
 else:
     print(f"خطا: {response.status_code}")
 
