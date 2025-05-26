@@ -4,6 +4,7 @@ import datetime
 import jdatetime
 import pandas as pd
 import asyncio
+import shutil
 import glob
 from googletrans import Translator
 from bs4 import BeautifulSoup
@@ -68,7 +69,9 @@ if response.status_code == 200:
             tasks = {}
             for row in df.index:
                 for col in df.columns:
-                    if pd.notna(df.at[row, col]):
+                    if pd.notna(df.at[row, col]) and col != df.columns[8]:
+                        tasks[(row, col)] = asyncio.create_task(translate_text(df.at[row, col]))
+                    elif pd.notna(df.at[row, col]) and col == df.columns[8] and df.index[0]:
                         tasks[(row, col)] = asyncio.create_task(translate_text(df.at[row, col]))
             
             results = await asyncio.gather(*tasks.values())
@@ -88,15 +91,15 @@ if response.status_code == 200:
             excel_files = glob.glob(os.path.join(folder_path, "*.xlsx"))
 
             if not excel_files:
-                print(" هیچ فایل اکسل یافت نشد")
+                print(" هیچ فایل اکسلی یافت نشد")
                 return
 
-            
             for file_path in excel_files:
                 await process_excel(file_path, folder_path)
 
         asyncio.run(main())
-
 else:
     print(f"خطا: {response.status_code}")
+
+# shutil.rmtree(folder)
 
